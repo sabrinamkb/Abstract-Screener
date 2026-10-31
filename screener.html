@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Abstract screener</title>
+<style>
+:root{--bg:#f2f4f6;--ink:#1b2430;--mute:#5d6b7a;--line:#d3dae1;--card:#fff;--acc:#0f6b73;--inc:#1f7a4d;--exc:#a4361f;--may:#8a6100}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1200px;margin:0 auto;padding:24px 16px 60px}
+h1{font:600 24px/1.2 Georgia,serif;margin:0 0 2px}
+p.sub{color:var(--mute);margin:0 0 14px}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:16px;align-items:start}
+@media(max-width:860px){.grid{grid-template-columns:1fr}}
+.card,.side>section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+.side>section{margin-bottom:12px}
+.side h3{margin:0 0 8px;font-size:14px}
+#drop{border:2px dashed var(--acc);border-radius:10px;background:var(--card);padding:16px;text-align:center;cursor:pointer;margin-bottom:12px}
+#drop.over{background:#e3f3ee}
+#drop span{color:var(--mute);font-size:13px}
+.top{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:var(--mute);margin-bottom:6px;flex-wrap:wrap}
+h2{font:600 21px/1.3 Georgia,serif;margin:0 0 6px}
+.m{font-size:13px;color:var(--mute);margin-bottom:10px;word-break:break-word}
+.ai{font-size:13px;background:#eef3f6;border-left:4px solid var(--acc);padding:7px 10px;margin-bottom:12px;border-radius:4px}
+.abs{white-space:pre-wrap;font-size:16px;line-height:1.65;margin-bottom:16px}
+mark{padding:0 2px;border-radius:3px}mark.i{background:#bfe8d3}mark.e{background:#f6c9bf}
+.btns{display:flex;gap:10px;flex-wrap:wrap}
+button{font:inherit;border:1px solid var(--acc);background:var(--acc);color:#fff;border-radius:6px;padding:9px 18px;cursor:pointer}
+button.alt{background:#fff;color:var(--acc);padding:6px 12px;font-size:13px}
+button.i{background:var(--inc);border-color:var(--inc)}button.e{background:var(--exc);border-color:var(--exc)}button.y{background:var(--may);border-color:var(--may)}
+button:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid #f0b429;outline-offset:2px}
+.tag{font-weight:600}.tag.inc{color:var(--inc)}.tag.exc{color:var(--exc)}.tag.may{color:var(--may)}
+textarea{width:100%;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:6px;padding:6px;resize:vertical}
+select{font:inherit;font-size:13px;width:100%;padding:4px}
+label.l{display:block;font-size:12px;color:var(--mute);margin:6px 0 2px}
+.pg{height:8px;background:var(--line);border-radius:4px;overflow:hidden;display:flex;margin:6px 0}
+.pg i{display:block;height:100%}
+.cnt{display:grid;grid-template-columns:1fr 1fr;gap:2px 10px;font-size:13px}
+#list{max-height:260px;overflow:auto;margin-top:6px;font-size:13px}
+#list div{padding:3px 4px;border-radius:4px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#list div:hover,#list div.on{background:#e3f3ee}
+.exp{display:flex;flex-direction:column;gap:6px}
+#msg{color:var(--exc);margin:6px 0;font-size:13px}
+kbd{border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;font-size:12px;background:#fff;color:var(--ink)}
+</style></head><body><main>
+<h1>Abstract screener</h1>
+<p class="sub">Runs entirely in your browser; nothing is uploaded. Deduplicate your references first, then drop them in. Shortcuts: <kbd>I</kbd> include, <kbd>E</kbd> exclude, <kbd>M</kbd> maybe, <kbd>U</kbd> undo.</p>
+<div id="drop" tabindex="0" role="button"><b>Drop .ris, .bib or .csv files here (or a saved session .json), or click to choose</b><br><span>Abstracts are read from your files. Records without one are flagged.</span>
+<input id="file" type="file" multiple accept=".ris,.txt,.bib,.csv,.tsv,.json" hidden></div>
+<div id="msg" role="alert"></div>
+<div class="grid">
+<div id="main"></div>
+<aside class="side">
+<section><h3>Progress</h3><div class="pg" id="pg"></div><div class="cnt" id="cnt"></div></section>
+<section><h3>Highlight keywords</h3>
+<label class="l" for="inc">Include terms (comma-separated)</label><textarea id="inc" rows="2" placeholder="randomized, adolescents"></textarea>
+<label class="l" for="exc">Exclude terms</label><textarea id="exc" rows="2" placeholder="animal, protocol, case report"></textarea>
+<p class="m" style="margin:4px 0 0">Also nudges the ranking slightly.</p></section>
+<section><h3>Order of unscreened records</h3>
+<select id="sort" aria-label="Order of unscreened records"><option value="file">File order</option><option value="inc">Most likely includes first</option><option value="unc">Most uncertain first</option></select>
+<p class="m" style="margin:6px 0 0" id="mstat"></p></section>
+<section><h3>Records</h3>
+<select id="flt" aria-label="Filter records"><option value="">All</option><option value="u">Unscreened</option><option value="inc">Included</option><option value="exc">Excluded</option><option value="may">Maybe</option></select>
+<div id="list"></div></section>
+<section class="exp"><h3>Save and export</h3>
+<button class="alt" id="x0">Save session (JSON)</button>
+<button class="alt" id="x1">All decisions (CSV)</button>
+<button class="alt" id="x2">Included records (RIS)</button>
+<button class="alt" id="x3">Clear everything</button></section>
+</aside></div>
+<script>
+let recs=[],cur=-1,hist=[],model=null,sc={};
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const norm=s=>(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/<[^>]*>/g,' ').replace(/[^a-z0-9]+/g,' ').trim();
+const normDoi=s=>{const m=/10\.\d{4,9}\/[^\s"<>]+/i.exec(s||'');return m?m[0].toLowerCase().replace(/[.,;]+$/,''):''};
+const SW=new Set('the and for with from that this was were are have has had not but its into than then also using used use study studies result results among between after before during over under which who whom their there these those can may more most other such only both each within without about our out been being per via one two three'.split(' '));
+const tok=r=>{const s=new Set();for(const t of [r.title,r.abstract])norm(t).split(' ').forEach(w=>{if(w.length>2&&!SW.has(w))s.add(w)});return s};
+
+function parseRIS(t){const out=[];let c=null;
+ for(const ln of t.split(/\r?\n/)){const m=/^([A-Z][A-Z0-9])\s{1,2}-\s?(.*)$/.exec(ln);if(!m)continue;const [,k,v]=m;
+  if(k==='TY'){if(c)out.push(c);c={authors:[]};continue}
+  if(k==='ER'){if(c)out.push(c);c=null;continue}
+  if(!c)c={authors:[]};
+  if((k==='TI'||k==='T1')&&!c.title)c.title=v;
+  else if(k==='AU'||k==='A1')c.authors.push(v);
+  else if((k==='PY'||k==='Y1'||k==='DA')&&!c.year){const y=/\d{4}/.exec(v);if(y)c.year=y[0]}
+  else if(k==='DO')c.doi=v;
+  else if(['JO','JF','T2','JA'].includes(k)&&!c.journal)c.journal=v;
+  else if(k==='AB'||k==='N2')c.abstract=v;
+  else if((k==='UR'||k==='L1'||k==='N1')&&!c.doi){const d=normDoi(v);if(d)c.doi=d}}
+ if(c)out.push(c);return out}
+function parseBib(t){const out=[];let i=0;
+ while((i=t.indexOf('@',i))>=0){const m=/^@\w+\s*[{(]/.exec(t.slice(i,i+40));if(!m){i++;continue}
+  let j=i+m[0].length,d=1;while(j<t.length&&d>0){if(t[j]=='{')d++;else if(t[j]=='}')d--;j++}
+  const body=t.slice(i+m[0].length,j-1);i=j;const r={};let p=body.indexOf(',')+1;
+  while(p<body.length){const mm=/\s*(\w+)\s*=\s*/y;mm.lastIndex=p;const x=mm.exec(body);if(!x){p++;continue}
+   p=mm.lastIndex;let v,s;
+   if(body[p]=='{'){let dd=1;s=++p;while(p<body.length&&dd){if(body[p]=='{')dd++;else if(body[p]=='}')dd--;p++}v=body.slice(s,p-1)}
+   else if(body[p]=='"'){s=++p;while(p<body.length&&body[p]!='"')p++;v=body.slice(s,p);p++}
+   else{s=p;while(p<body.length&&body[p]!=',')p++;v=body.slice(s,p)}
+   r[x[1].toLowerCase()]=v.replace(/[{}]/g,'').replace(/\s+/g,' ').trim()}
+  out.push({title:r.title,authors:(r.author||'').split(/\s+and\s+/).filter(Boolean),year:(/\d{4}/.exec(r.year||r.date||'')||[])[0],doi:r.doi||r.url,journal:r.journal||r.booktitle,abstract:r.abstract})}
+ return out}
+function parseCSV(t){t=t.replace(/^\uFEFF/,'');const l1=t.split('\n')[0];const d=(l1.match(/\t/g)||[]).length>(l1.match(/,/g)||[]).length?'\t':',';
+ const rows=[];let r=[],f='',q=false;
+ for(let i=0;i<t.length;i++){const c=t[i];
+  if(q){if(c=='"'){if(t[i+1]=='"'){f+='"';i++}else q=false}else f+=c}
+  else if(c=='"')q=true;else if(c==d){r.push(f);f=''}
+  else if(c=='\n'){r.push(f);rows.push(r);r=[];f=''}else if(c!='\r')f+=c}
+ if(f||r.length){r.push(f);rows.push(r)}
+ const h=rows.shift().map(x=>x.trim().toLowerCase());
+ const col=(...n)=>h.findIndex(x=>n.some(k=>x===k||x.includes(k)));
+ const ci={t:col('title','article title'),a:col('authors','author'),y:col('year','publication year','date'),d:col('doi'),j:col('journal','source','publication title'),b:col('abstract')};
+ if(ci.t<0)throw new Error('No "title" column found');
+ const g=(r,i)=>i>=0?(r[i]||'').trim():'';
+ return rows.filter(r=>r.some(x=>x.trim())).map(r=>({title:g(r,ci.t),authors:g(r,ci.a).split(/;| and /).map(s=>s.trim()).filter(Boolean),year:(/\d{4}/.exec(g(r,ci.y))||[])[0],doi:g(r,ci.d),journal:g(r,ci.j),abstract:g(r,ci.b)}))}
+
+function mk(o,file,dec=''){const r={id:recs.length,file:o.file||file,title:(o.title||'').replace(/\s+/g,' ').trim(),authors:(o.authors||[]).map(a=>a.trim()).filter(Boolean),year:o.year||'',doi:normDoi(o.doi),journal:o.journal||'',abstract:(o.abstract||'').trim(),dec};r.toks=tok(r);return r}
+const terms=id=>$(id).value.split(/[,\n]/).map(s=>s.trim().toLowerCase()).filter(Boolean);
+
+function train(){let ni=0,ne=0,ti=0,te=0;const I={},E={},V=new Set();
+ for(const r of recs){if(r.dec=='inc'){ni++;r.toks.forEach(w=>{I[w]=(I[w]||0)+1;ti++;V.add(w)})}else if(r.dec=='exc'){ne++;r.toks.forEach(w=>{E[w]=(E[w]||0)+1;te++;V.add(w)})}}
+ model=ni>=3&&ne>=3?{I,E,ti,te,V,vs:V.size,ni,ne}:null}
+function scoreAll(){sc={};const ti=terms('inc'),te=terms('exc');
+ for(const r of recs){if(r.dec)continue;let sum=0,n=0;const pos=[],neg=[];
+  if(model)for(const w of r.toks){if(!model.V.has(w))continue;const c=Math.log(((model.I[w]||0)+1)/(model.ti+model.vs))-Math.log(((model.E[w]||0)+1)/(model.te+model.vs));sum+=c;n++;(c>0?pos:neg).push([w,c])}
+  const tx=(r.title+' '+r.abstract).toLowerCase(),adj=ti.filter(t=>tx.includes(t)).length-te.filter(t=>tx.includes(t)).length;
+  pos.sort((a,b)=>b[1]-a[1]);neg.sort((a,b)=>a[1]-b[1]);
+  sc[r.id]={s:(n?sum/Math.sqrt(n):0)+.3*adj,pos:pos.slice(0,4).map(x=>x[0]),neg:neg.slice(0,4).map(x=>x[0])}}}
+const ready=()=>model||terms('inc').length||terms('exc').length;
+const label=s=>s>.5?'Likely include':s<-.5?'Likely exclude':'Uncertain';
+function queue(){const u=recs.filter(r=>!r.dec),m=$('sort').value;
+ if(m=='inc'&&ready())u.sort((a,b)=>sc[b.id].s-sc[a.id].s);
+ else if(m=='unc'&&ready())u.sort((a,b)=>Math.abs(sc[a.id].s)-Math.abs(sc[b.id].s));
+ return u}
+function hl(text){let h=esc(text);const ti=terms('inc'),te=terms('exc'),all=[...ti,...te];if(!all.length)return h;
+ const re=new RegExp(all.map(t=>esc(t).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|'),'gi');
+ return h.replace(re,m=>`<mark class="${ti.includes(m.toLowerCase())?'i':'e'}">${m}</mark>`)}
+
+function decide(d){const r=recs[cur];if(!r)return;hist.push({id:r.id,prev:r.dec});r.dec=d;after()}
+function undo(){const h=hist.pop();if(!h)return;recs[h.id].dec=h.prev;cur=h.id;after(true)}
+function after(keep){train();scoreAll();if(!keep){const q=queue();cur=q.length?q[0].id:-1}save();render()}
+function go(id){cur=id;render()}
+
+function render(){
+ const n=recs.length,c=k=>recs.filter(r=>r.dec==k).length,u=recs.filter(r=>!r.dec).length;
+ $('cnt').innerHTML=`<span>Total: ${n}</span><span>Unscreened: ${u}</span><span style="color:var(--inc)">Included: ${c('inc')}</span><span style="color:var(--exc)">Excluded: ${c('exc')}</span><span style="color:var(--may)">Maybe: ${c('may')}</span>`;
+ $('pg').innerHTML=n?`<i style="width:${c('inc')/n*100}%;background:var(--inc)"></i><i style="width:${c('exc')/n*100}%;background:var(--exc)"></i><i style="width:${c('may')/n*100}%;background:var(--may)"></i>`:'';
+ const likely=recs.filter(r=>!r.dec&&sc[r.id]&&sc[r.id].s>.5).length;
+ $('mstat').textContent=model?`Learning from ${model.ni} includes and ${model.ne} excludes. ${likely} unscreened records currently look like includes. Don't stop screening based on this alone.`:'Needs at least 3 included and 3 excluded records before it can learn.';
+ const r=recs[cur];
+ if(!n)$('main').innerHTML='<div class="card">Drop your reference files above to begin.</div>';
+ else if(!r)$('main').innerHTML='<div class="card"><h2>All records screened</h2><p>Export your decisions from the panel on the right. Review the "Maybe" records using the filter.</p></div>';
+ else{const s=sc[r.id],pos=recs.indexOf(r)+1;
+  const ai=!r.dec&&s&&ready()?`<div class="ai"><b>Suggestion: ${label(s.s)}</b> (a rough guide from your earlier decisions and keywords; you decide)${s.pos.length||s.neg.length?`<br>Words leaning include: ${esc(s.pos.join(', ')||'none')} · leaning exclude: ${esc(s.neg.join(', ')||'none')}`:''}</div>`:'';
+  $('main').innerHTML=`<div class="card"><div class="top"><span>Record ${pos} of ${n} · ${esc(r.file)}</span><span class="tag ${r.dec}">${{inc:'Included',exc:'Excluded',may:'Maybe','':'Unscreened'}[r.dec]}</span></div>
+  <h2>${hl(r.title||'(no title)')}</h2><div class="m">${esc(r.authors.slice(0,6).join('; '))}${r.authors.length>6?' et al.':''} (${esc(r.year||'n.d.')}) ${esc(r.journal)}${r.doi?' · DOI '+esc(r.doi):''}</div>${ai}
+  <div class="abs">${r.abstract?hl(r.abstract):'<i>No abstract in the imported file. Decide from the title or check the full record.</i>'}</div>
+  <div class="btns"><button class="i" data-d="inc">Include (I)</button><button class="e" data-d="exc">Exclude (E)</button><button class="y" data-d="may">Maybe (M)</button><button class="alt" data-d="undo">Undo (U)</button></div></div>`}
+ const f=$('flt').value,L=recs.filter(r=>!f||(f=='u'?!r.dec:r.dec==f));
+ $('list').innerHTML=L.slice(0,300).map(r=>`<div data-id="${r.id}" class="${r.id==cur?'on':''}" title="${esc(r.title)}"><span class="tag ${r.dec}">${{inc:'●',exc:'●',may:'●','':'○'}[r.dec]}</span> ${esc(r.title)}</div>`).join('')+(L.length>300?`<div>…and ${L.length-300} more (use the filter)</div>`:'')}
+
+$('main').onclick=e=>{const d=e.target.dataset.d;if(d)d=='undo'?undo():decide(d)};
+$('list').onclick=e=>{const el=e.target.closest('[data-id]');if(el)go(+el.dataset.id)};
+document.onkeydown=e=>{if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)||e.ctrlKey||e.metaKey)return;
+ const k=e.key.toLowerCase();if(k=='i')decide('inc');else if(k=='e')decide('exc');else if(k=='m')decide('may');else if(k=='u')undo()};
+['sort','flt'].forEach(i=>$(i).onchange=()=>{scoreAll();if(i=='sort'&&cur>=0&&!recs[cur].dec){const q=queue();if(q.length)cur=q[0].id}render()});
+['inc','exc'].forEach(i=>$(i).oninput=()=>{scoreAll();save();render()});
+
+async function load(files){$('msg').textContent='';
+ for(const f of files){try{const t=await f.text(),x=f.name.toLowerCase();
+  if(x.endsWith('.json')){restore(JSON.parse(t));continue}
+  const rows=x.endsWith('.bib')?parseBib(t):/\.(csv|tsv)$/.test(x)?parseCSV(t):parseRIS(t);
+  if(!rows.length)throw new Error('no records found');
+  rows.filter(r=>r.title).forEach(r=>recs.push(mk(r,f.name)))}
+  catch(err){$('msg').textContent+=`Could not read ${f.name}: ${err.message}. `}}
+ train();scoreAll();if(cur<0||!recs[cur]){const q=queue();cur=q.length?q[0].id:-1}save();render()}
+function session(){return{v:1,inc:$('inc').value,exc:$('exc').value,recs:recs.map(r=>({title:r.title,authors:r.authors,year:r.year,doi:r.doi,journal:r.journal,abstract:r.abstract,file:r.file,dec:r.dec}))}}
+function restore(s){recs=[];s.recs.forEach(o=>recs.push(mk(o,o.file,o.dec||'')));$('inc').value=s.inc||'';$('exc').value=s.exc||'';hist=[];cur=-1}
+function save(){try{localStorage.setItem('screener1',JSON.stringify(session()))}catch(e){}}
+const drop=$('drop');
+drop.onclick=()=>$('file').click();
+drop.onkeydown=e=>{if(e.key==='Enter'||e.key===' ')$('file').click()};
+drop.ondragover=e=>{e.preventDefault();drop.classList.add('over')};
+drop.ondragleave=()=>drop.classList.remove('over');
+drop.ondrop=e=>{e.preventDefault();drop.classList.remove('over');load([...e.dataTransfer.files])};
+$('file').onchange=e=>{load([...e.target.files]);e.target.value=''};
+
+function dl(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click()}
+const cq=s=>'"'+String(s??'').replace(/"/g,'""')+'"';
+$('x0').onclick=()=>dl('screening_session.json',JSON.stringify(session()),'application/json');
+$('x1').onclick=()=>dl('screening_decisions.csv','\uFEFF'+['decision,title,authors,year,journal,doi,abstract,source_file',...recs.map(r=>[{inc:'Include',exc:'Exclude',may:'Maybe','':'Unscreened'}[r.dec],r.title,r.authors.join('; '),r.year,r.journal,r.doi,r.abstract,r.file].map(cq).join(','))].join('\r\n'),'text/csv');
+$('x2').onclick=()=>dl('included_records.ris',recs.filter(r=>r.dec=='inc').map(r=>['TY  - JOUR','TI  - '+r.title,...r.authors.map(a=>'AU  - '+a),r.year&&'PY  - '+r.year,r.journal&&'JO  - '+r.journal,r.doi&&'DO  - '+r.doi,r.abstract&&'AB  - '+r.abstract,'ER  - '].filter(Boolean).join('\r\n')).join('\r\n\r\n'),'text/plain');
+$('x3').onclick=()=>{if(confirm('Delete all records and decisions? Save your session first if you need it.')){recs=[];hist=[];cur=-1;model=null;sc={};try{localStorage.removeItem('screener1')}catch(e){}render()}};
+
+try{const s=localStorage.getItem('screener1');if(s){restore(JSON.parse(s));train();scoreAll();const q=queue();cur=q.length?q[0].id:-1}}catch(e){}
+render();
+</script></body></html>
